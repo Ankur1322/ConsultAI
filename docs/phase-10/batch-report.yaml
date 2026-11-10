@@ -1,0 +1,19 @@
+phase: 10
+title: Presidio-backed PII redaction
+status: complete_with_fallback
+files_modified:
+  - pyproject.toml
+  - consultai/services/redaction.py
+files_created:
+  - tests/test_redaction_adversarial.py
+  - docs/phase-10/redaction.md
+implemented:
+  - Presidio Analyzer and Anonymizer integration.
+  - Safe local pattern fallback when Presidio is unavailable.
+  - Prompt-injection text treated as data while PII is redacted.
+  - Multiple-entity adversarial tests.
+validation:
+  python_tests:
+    status: pending
+limitations:
+  - Presidio language-model downloads and broader entity coverage require runtime verification in the deployment image.
