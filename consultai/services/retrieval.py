@@ -7,6 +7,7 @@ from ..models import RetrievalHit, RetrievalResult, SourceCreate, SourceDocument
 from .persistence import Repository
 from .observability import increment
 from .embeddings import EmbeddingError, embed_text
+from .reranking import rerank
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
@@ -84,7 +85,8 @@ class EvidenceStore:
                 )
             )
         scored.sort(key=lambda hit: hit.score, reverse=True)
-        return RetrievalResult(query=query, hits=scored[:top_k])
+        reranked = rerank(query, scored[:top_k])
+        return RetrievalResult(query=query, hits=reranked[:top_k])
 
     @staticmethod
     def _semantic_overlap(query_tokens: Counter[str], document_tokens: Counter[str]) -> float:
