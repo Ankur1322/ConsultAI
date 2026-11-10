@@ -14,6 +14,7 @@ _PATTERNS = (
     ("PHONE_NUMBER", re.compile(r"(?<!\d)(?:\+?\d[\d\s().-]{7,}\d)(?!\d)")),
     ("CREDIT_CARD", re.compile(r"(?<!\d)(?:\d[ -]*?){13,19}(?!\d)")),
 )
+_SUPPORTED_PRESIDIO_TYPES = {"EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "PERSON", "US_SSN"}
 
 
 def redact_pii(text: str) -> RedactionResult:
@@ -31,7 +32,11 @@ def _redact_with_presidio(text: str) -> RedactionResult | None:
         return None
     try:
         analyzer = AnalyzerEngine()
-        results = analyzer.analyze(text=text, language="en")
+        results = [
+            result
+            for result in analyzer.analyze(text=text, language="en")
+            if result.entity_type in _SUPPORTED_PRESIDIO_TYPES
+        ]
         if not results:
             return RedactionResult(text, 0, ())
         anonymized = AnonymizerEngine().anonymize(text=text, analyzer_results=results)
