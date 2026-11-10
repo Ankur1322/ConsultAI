@@ -117,6 +117,20 @@ See [deployment guidance](docs/phase-7/deployment.md) and
 [limitations](docs/phase-7/limitations.md) before treating the prototype as
 production-ready.
 
+## Persistent storage
+
+Set `CONSULTAI_STORAGE=postgres` to use the PostgreSQL repository and
+checkpoint tables:
+
+```powershell
+$env:CONSULTAI_STORAGE = "postgres"
+.\docker-compose.ps1 up --build
+```
+
+The PostgreSQL repository creates `consultai_sessions`, `consultai_sources`,
+and `consultai_checkpoints`. The default `memory` mode remains useful for
+offline unit tests; production Docker configuration should use `postgres`.
+
 ## Automatic GitHub sync
 
 This repository is configured to push after every successful commit. Configure

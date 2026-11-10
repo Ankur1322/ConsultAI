@@ -3,6 +3,7 @@ from collections import Counter
 from uuid import UUID, uuid4
 
 from ..models import RetrievalHit, RetrievalResult, SourceCreate, SourceDocument
+from .persistence import Repository
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
@@ -14,8 +15,9 @@ def _tokens(text: str) -> list[str]:
 class EvidenceStore:
     """Session-scoped evidence store with deterministic hybrid retrieval."""
 
-    def __init__(self) -> None:
+    def __init__(self, repository: Repository | None = None) -> None:
         self._documents: dict[UUID, dict[str, SourceDocument]] = {}
+        self.repository = repository
 
     def add(self, session_id: UUID, payload: SourceCreate) -> SourceDocument:
         document = SourceDocument(
@@ -25,10 +27,15 @@ class EvidenceStore:
             text=payload.text,
             metadata=payload.metadata,
         )
-        self._documents.setdefault(session_id, {})[document.source_id] = document
+        if self.repository is not None:
+            self.repository.add_source(session_id, document)
+        else:
+            self._documents.setdefault(session_id, {})[document.source_id] = document
         return document
 
     def list(self, session_id: UUID) -> list[SourceDocument]:
+        if self.repository is not None:
+            return self.repository.list_sources(session_id)
         return list(self._documents.get(session_id, {}).values())
 
     def retrieve(self, session_id: UUID, query: str, top_k: int = 5) -> RetrievalResult:

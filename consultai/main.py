@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from collections.abc import AsyncIterator
 from uuid import UUID
 
@@ -22,12 +23,16 @@ from .services.discovery import generate_discovery
 from .services.evaluator import evaluate_requirements
 from .services.requirements_agent import build_requirements
 from .services.observability import request_metrics
+from .services.persistence import PersistenceError, Repository
 from .services.redaction import redact_pii
 from .services.risk import assess_opportunity_risk
 from .services.retrieval import evidence_store
 
 app = FastAPI(title="ConsultAI", version="0.1.0")
 _sessions: dict[UUID, GraphState] = {}
+_repository = Repository() if os.getenv("CONSULTAI_STORAGE") == "postgres" else None
+if _repository is not None:
+    evidence_store.repository = _repository
 app.middleware("http")(request_metrics)
 
 
@@ -59,12 +64,18 @@ def create_session(payload: SessionCreate) -> dict:
         redaction_entity_types=list(redaction.entity_types),
     )
     _sessions[session.id] = state
+    if _repository is not None:
+        _repository.save_session(state)
     return {"session": session, "status_url": f"/api/sessions/{session.id}"}
 
 
 @app.get("/api/sessions/{session_id}")
 def get_session(session_id: UUID) -> dict:
     state = _sessions.get(session_id)
+    if state is None and _repository is not None:
+        state = _repository.get_session(session_id)
+        if state is not None:
+            _sessions[session_id] = state
     if state is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return {"session": state.session, "events": state.events, "result": state.model_dump()}
@@ -76,6 +87,9 @@ def run_session(session_id: UUID) -> dict:
     if state is None:
         raise HTTPException(status_code=404, detail="Session not found")
     _sessions[session_id] = run_graph(state)
+    if _repository is not None:
+        _repository.save_session(_sessions[session_id])
+        _repository.checkpoint(_sessions[session_id])
     return get_session(session_id)
 
 

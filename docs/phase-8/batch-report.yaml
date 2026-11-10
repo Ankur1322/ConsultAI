@@ -1,0 +1,31 @@
+phase: 8
+title: Persistent PostgreSQL sessions, sources, and checkpoints
+status: complete_with_follow_up
+files_created:
+  - consultai/services/persistence.py
+  - tests/test_persistence.py
+  - docs/phase-8/storage.md
+files_modified:
+  - pyproject.toml
+  - consultai/main.py
+  - consultai/services/retrieval.py
+  - docker-compose.yml
+  - .env.example
+  - README.md
+implemented:
+  - PostgreSQL repository with session, source, and append-only checkpoint tables.
+  - Docker API configured to use PostgreSQL storage.
+  - Durable source retrieval path.
+  - Explicit failure when PostgreSQL is unavailable in postgres mode.
+validation:
+  python_tests:
+    status: passed
+    result: 24 passed.
+  langgraph_checkpointer:
+    status: pending
+    result: Custom PostgreSQL checkpoints are implemented; official LangGraph PostgresSaver requires StateGraph migration.
+  docker_restart:
+    status: passed
+    result: Session and source evidence remained available after restarting the API container.
+follow_up:
+  - Migrate the custom graph to a compiled LangGraph StateGraph and use the official PostgresSaver.

@@ -2,13 +2,13 @@
 
 ## Current implementation
 
-- Session state and evidence are held in memory; restarting the API loses active sessions and uploaded sources.
+- Local default mode keeps session state and evidence in memory; Docker mode now supports PostgreSQL-backed sessions, sources, and checkpoints.
 - The retrieval implementation is a deterministic offline baseline. It does not yet use PostgreSQL pgvector, a production BM25 index, or a cross-encoder service.
 - The QLoRA notebook is a configuration scaffold. No training run or quality improvement is claimed.
 - The evaluator is rubric-based and deterministic. It is not a substitute for human review or a validated LLM-as-judge.
 - PII redaction currently covers common email, phone, and credit-card patterns. Presidio integration is still required for broader entity coverage.
 - API-key authentication is a deployment guard, not a complete identity, tenant isolation, or authorization system.
-- Docker Compose starts PostgreSQL and Ollama, but the current API does not persist to PostgreSQL or automatically download an Ollama model.
+- Docker Compose starts PostgreSQL and Ollama. The API persists core session/source/checkpoint records to PostgreSQL when `CONSULTAI_STORAGE=postgres`, but does not yet automatically download an Ollama model.
 
 ## Operational requirements before production
 
