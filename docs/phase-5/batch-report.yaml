@@ -1,0 +1,32 @@
+phase: 5
+title: Dataset builder, QLoRA notebook, and baseline comparison
+status: complete
+files_created:
+  - consultai/training/__init__.py
+  - consultai/training/dataset_builder.py
+  - consultai/training/baseline.py
+  - data/training/examples.jsonl
+  - data/training/normalized.jsonl
+  - notebooks/qlora_training.ipynb
+  - tests/test_training.py
+implemented:
+  - Validated JSONL dataset normalization with stable input/output/metadata shape.
+  - Deterministic baseline metrics for functional id recall, testable sentence rate, and acceptance criteria rate.
+  - QLoRA configuration notebook scaffold with explicit quantization and LoRA parameters.
+  - Training safety checklist covering PII, secrets, licensing, split hygiene, and frozen evaluation data.
+validation:
+  python_tests:
+    status: passed
+    result: 14 passed.
+  dataset_builder:
+    status: passed
+    result: 2 records normalized.
+  baseline_smoke_test:
+    status: passed
+    result: 2 cases; composite 1.0 when comparing the dataset against itself.
+  notebook_json:
+    status: passed
+    result: 4 cells parsed successfully.
+limitations:
+  - No QLoRA training run was claimed or performed; GPU, base model, licensing, and optional training packages require an explicit environment decision.
+  - The baseline is a contract-oriented comparison, not a semantic quality score.

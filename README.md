@@ -82,3 +82,14 @@ npm run build
 ```
 
 See [phase 1 requirements](docs/phase-1/requirements.md) and [phase 1 data models](docs/phase-1/data-models.md) for the approved contracts.
+
+## Phase 5 training artifacts
+
+Build the normalized dataset and run the deterministic baseline comparison:
+
+```powershell
+py -3.11 -m consultai.training.dataset_builder data\training\examples.jsonl data\training\normalized.jsonl
+py -3.11 -m consultai.training.baseline data\training\normalized.jsonl data\training\normalized.jsonl
+```
+
+The QLoRA notebook is [notebooks/qlora_training.ipynb](notebooks/qlora_training.ipynb). It is a configuration and data-loading scaffold; no training metric is reported until a licensed base model, GPU environment, and frozen evaluation set are selected.
