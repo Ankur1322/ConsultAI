@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from consultai.services.embeddings import EmbeddingError, embed_text
