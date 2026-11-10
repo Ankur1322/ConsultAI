@@ -1,0 +1,44 @@
+phase: 2
+title: Repo scaffold, Docker, CI, and graph skeleton
+status: validated_with_host_limits
+files_created:
+  - pyproject.toml
+  - .env.example
+  - .gitignore
+  - consultai/__init__.py
+  - consultai/config.py
+  - consultai/models.py
+  - consultai/graph.py
+  - consultai/main.py
+  - tests/test_models.py
+  - tests/test_graph.py
+  - tests/test_api.py
+  - frontend/package.json
+  - frontend/package-lock.json
+  - frontend/index.html
+  - frontend/src/main.js
+  - Dockerfile
+  - docker-compose.yml
+  - .github/workflows/ci.yml
+  - README.md
+validation:
+  python_tests:
+    status: passed
+    result: Python 3.11.9 installed through Python Install Manager; 5 tests passed.
+  frontend_tests:
+    status: passed
+    result: npm test completed with zero failures.
+  frontend_build:
+    status: blocked
+    result: Windows application-control policy blocked the Rollup native module.
+  api_runtime_probe:
+    status: blocked
+    result: Not run as a long-lived server probe; Python dependencies and tests are now available.
+warnings:
+  - severity: HIGH
+    message: Docker Desktop is not installed or not available on the current PATH.
+  - severity: MEDIUM
+    message: Frontend build is blocked by the host policy loading Rollup native binary; rerun in CI or an approved environment.
+known_limitations:
+  - Graph handlers are safe typed stubs; persistence, Presidio, LangGraph checkpointer, retrieval, and model calls are deferred.
+  - In-memory sessions are intentionally non-persistent in phase 2.

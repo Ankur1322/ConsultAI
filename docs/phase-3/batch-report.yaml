@@ -1,0 +1,34 @@
+phase: 3
+title: Discovery and requirements agents
+status: complete
+files_created:
+  - consultai/services/__init__.py
+  - consultai/services/prompt_loader.py
+  - consultai/services/discovery.py
+  - consultai/services/requirements_agent.py
+  - tests/test_agents.py
+files_modified:
+  - Dockerfile
+  - consultai/models.py
+  - consultai/graph.py
+  - consultai/main.py
+  - tests/test_api.py
+implemented:
+  - Typed discovery question and result contracts.
+  - Deterministic discovery-topic detection for offline/local operation.
+  - Versioned requirements prompt loading and contract guard.
+  - Structured requirements generation with evidence, confidence, and acceptance criteria.
+  - POST /api/discovery and POST /api/requirements.
+  - Graph integration for discovery and requirements nodes.
+validation:
+  python_tests:
+    status: passed
+    result: 8 passed.
+  warnings:
+    - FastAPI TestClient dependency deprecation warning from installed Starlette/httpx versions.
+  runtime:
+    status: passed
+    result: Health, discovery, and requirements endpoints returned successful responses in Docker.
+notes:
+  - This phase provides a deterministic baseline; model-backed generation remains provider-gated.
+  - PII redaction and external model calls remain deferred to later phases.

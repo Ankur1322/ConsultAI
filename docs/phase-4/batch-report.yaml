@@ -1,0 +1,29 @@
+phase: 4
+title: RAG pipeline, corrective retrieval, and citation checking
+status: complete
+files_created:
+  - consultai/services/retrieval.py
+  - consultai/services/citations.py
+  - tests/test_retrieval.py
+files_modified:
+  - consultai/models.py
+  - consultai/main.py
+implemented:
+  - Session-scoped source document ingestion.
+  - Deterministic hybrid lexical and semantic-overlap retrieval baseline.
+  - Corrective retrieval with a bounded second attempt and corrected query.
+  - Claim-level citation verification with explicit insufficient_evidence output.
+  - POST /api/sessions/{session_id}/sources.
+  - POST /api/sessions/{session_id}/retrieve.
+  - POST /api/sessions/{session_id}/research.
+validation:
+  python_tests:
+    status: passed
+    result: 12 passed.
+  docker_http_flow:
+    status: passed
+    result: Source ingestion, research retrieval, and supported citation verified over HTTP.
+limitations:
+  - The phase 4 retriever is an offline deterministic baseline; pgvector, BM25 indexes, and cross-encoder inference are integration work for a later hardening pass.
+  - Evidence storage is in-memory until the Postgres repository is implemented.
+  - No external web connector is enabled.

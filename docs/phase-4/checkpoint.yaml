@@ -1,0 +1,6 @@
+phase: 4
+status: complete
+tests: 12 passed
+runtime_flow: source_ingest_to_retrieval_to_citation_verified
+next_phase: 5
+next_scope: Dataset builder, QLoRA training notebook, and baseline comparison

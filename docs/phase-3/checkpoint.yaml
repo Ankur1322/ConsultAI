@@ -1,0 +1,5 @@
+phase: 3
+status: complete
+tests: 8 passed
+next_phase: 4
+next_scope: RAG pipeline, corrective retrieval loop, reranking, and citation checking
