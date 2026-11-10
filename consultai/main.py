@@ -33,7 +33,7 @@ from .services.critic import critic_decision
 from .services.discovery import generate_discovery
 from .services.evaluator import evaluate_requirements
 from .services.requirements_agent import build_requirements
-from .services.observability import request_metrics
+from .services.observability import metrics_snapshot, request_metrics, increment
 from .services.persistence import PersistenceError, Repository
 from .services.redaction import redact_pii
 from .services.risk import assess_opportunity_risk
@@ -112,6 +112,11 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "consultai"}
 
 
+@app.get("/metrics")
+def metrics() -> dict[str, int | float]:
+    return metrics_snapshot()
+
+
 @app.post("/api/sessions", status_code=201)
 def create_session(payload: SessionCreate, request: Request) -> dict:
     user = current_user(request)
@@ -180,6 +185,7 @@ def review_session(session_id: UUID, payload: ReviewDecision, request: Request) 
         _repository.save_session(state, user)
         _repository.checkpoint(state)
         _repository.audit(user, "session.review", session_id)
+    increment("human_reviews_total")
     return get_session(session_id, request)
 
 

@@ -3,6 +3,8 @@ import os
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
+from .observability import increment
+
 
 class ModelRuntimeError(RuntimeError):
     """Raised when an enabled model provider cannot return valid output."""
@@ -11,6 +13,7 @@ class ModelRuntimeError(RuntimeError):
 def generate_json(prompt: str) -> dict | None:
     if os.getenv("CONSULTAI_LLM_ENABLED", "false").lower() != "true":
         return None
+    increment("model_calls_total")
     provider = os.getenv("CONSULTAI_MODEL_PROVIDER", "ollama").lower()
     if provider == "litellm":
         try:

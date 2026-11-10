@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from ..models import RetrievalHit, RetrievalResult, SourceCreate, SourceDocument
 from .persistence import Repository
+from .observability import increment
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
@@ -39,6 +40,7 @@ class EvidenceStore:
         return list(self._documents.get(session_id, {}).values())
 
     def retrieve(self, session_id: UUID, query: str, top_k: int = 5) -> RetrievalResult:
+        increment("retrieval_calls_total")
         query_tokens = Counter(_tokens(query))
         if self.repository is not None:
             documents = self.repository.search_sources(session_id, query)
