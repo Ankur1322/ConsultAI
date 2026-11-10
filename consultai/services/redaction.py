@@ -37,6 +37,12 @@ def _redact_with_presidio(text: str) -> RedactionResult | None:
             for result in analyzer.analyze(text=text, language="en")
             if result.entity_type in _SUPPORTED_PRESIDIO_TYPES
         ]
+        selected = []
+        for result in sorted(results, key=lambda item: (item.start, -(item.end - item.start))):
+            if any(result.start < existing.end and result.end > existing.start for existing in selected):
+                continue
+            selected.append(result)
+        results = selected
         if not results:
             return RedactionResult(text, 0, ())
         anonymized = AnonymizerEngine().anonymize(text=text, analyzer_results=results)
