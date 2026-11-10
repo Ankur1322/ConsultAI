@@ -17,8 +17,11 @@ from .models import (
     SourceCreate,
 )
 from .services.citations import build_research_summary
+from .services.critic import critic_decision
 from .services.discovery import generate_discovery
+from .services.evaluator import evaluate_requirements
 from .services.requirements_agent import build_requirements
+from .services.risk import assess_opportunity_risk
 from .services.retrieval import evidence_store
 
 app = FastAPI(title="ConsultAI", version="0.1.0")
@@ -96,6 +99,25 @@ def research(session_id: UUID, payload: ResearchRequest) -> dict:
         min_score=payload.min_support_score,
     )
     return build_research_summary(payload.query, retrieval.hits).model_dump(mode="json")
+
+
+@app.post("/api/evaluate")
+def evaluate(payload: RequirementsRequest) -> dict:
+    requirements_doc = build_requirements(payload.process_description, payload.discovery_answers)
+    result = evaluate_requirements(requirements_doc.model_dump(mode="json"))
+    return result
+
+
+@app.post("/api/critic")
+def critic(payload: RequirementsRequest) -> dict:
+    requirements_doc = build_requirements(payload.process_description, payload.discovery_answers)
+    evaluation = evaluate_requirements(requirements_doc.model_dump(mode="json"))
+    return critic_decision(evaluation)
+
+
+@app.post("/api/risk-check")
+def risk_check(payload: dict[str, object]) -> dict:
+    return assess_opportunity_risk(payload)
 
 
 @app.get("/api/sessions/{session_id}/stream")

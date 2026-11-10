@@ -12,7 +12,10 @@ from .models import (
     SessionStatus,
 )
 from .services.discovery import generate_discovery
+from .services.critic import critic_decision
+from .services.evaluator import evaluate_requirements
 from .services.requirements_agent import build_requirements
+from .services.risk import assess_opportunity_risk
 
 Node = Callable[[GraphState], GraphState]
 
@@ -66,7 +69,11 @@ def research(state: GraphState) -> GraphState:
 
 
 def evaluator(state: GraphState) -> GraphState:
-    return _event(state, "evaluator", "Evaluator stub completed without a quality score.")
+    if state.requirements is None:
+        state.evaluation = {"passed": False, "overall": 0.0, "scores": {}}
+    else:
+        state.evaluation = evaluate_requirements(state.requirements.model_dump(mode="json"))
+    return _event(state, "evaluator", "Requirements evaluated against the phase 6 rubric.")
 
 
 def risk_check(state: GraphState) -> GraphState:
@@ -82,11 +89,19 @@ def risk_check(state: GraphState) -> GraphState:
             confidence="low",
         )
     ]
-    return _event(state, "risk_check", "Risk-check stub produced a conservative placeholder.")
+    state.risk_assessments = [
+        assess_opportunity_risk(opportunity.model_dump(mode="json"))
+        for opportunity in state.opportunities
+    ]
+    return _event(state, "risk_check", "AI opportunities received risk assessments and controls.")
 
 
 def critic(state: GraphState) -> GraphState:
-    return _event(state, "critic", "Critic stub completed; citation verification is deferred.")
+    state.critic_result = critic_decision(state.evaluation or {"passed": False})
+    if not state.critic_result["passed"]:
+        state.review_required = True
+        state.session.status = SessionStatus.REVIEW
+    return _event(state, "critic", "Critic checked rubric status and bounded retry routing.")
 
 
 def human_review(state: GraphState) -> GraphState:

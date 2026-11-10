@@ -1,0 +1,26 @@
+phase: 6
+title: Evaluator, risk check, critic, and golden evaluation suite
+status: complete
+files_created:
+  - consultai/services/evaluator.py
+  - consultai/services/risk.py
+  - consultai/services/critic.py
+  - data/evaluation/golden_cases.jsonl
+  - tests/test_quality.py
+  - tests/test_golden_cases.py
+implemented:
+  - Multi-dimensional requirements rubric.
+  - Risk severity and human-oversight controls.
+  - Critic routing with a maximum retry budget of two.
+  - 20 golden cases spanning both v1 verticals and simple, medium, and complex inputs.
+  - Graph state integration for evaluation, risk assessments, and critic results.
+  - Quality API endpoints.
+validation:
+  python_tests:
+    status: passed
+    result: 19 tests passed.
+  golden_cases:
+    status: passed
+    result: 20 cases parsed and validated.
+limitations:
+  - Evaluator is deterministic and rubric-based; an LLM-as-judge is deferred until the model policy and evaluation provider are approved.

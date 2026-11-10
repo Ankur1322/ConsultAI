@@ -53,3 +53,15 @@ def test_source_retrieval_and_citation_endpoints() -> None:
     )
     assert research.status_code == 200
     assert research.json()["claims"][0]["support_status"] == "supported"
+
+
+def test_quality_endpoints() -> None:
+    payload = {"process_description": "Agents answer customer emails.", "discovery_answers": {}}
+    evaluation = client.post("/api/evaluate", json=payload)
+    assert evaluation.status_code == 200
+    assert "overall" in evaluation.json()
+    critic = client.post("/api/critic", json=payload)
+    assert critic.status_code == 200
+    assert critic.json()["max_retries"] == 2
+    risk = client.post("/api/risk-check", json={"id": "AI-001", "risks": []})
+    assert risk.status_code == 200

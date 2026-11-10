@@ -94,6 +94,18 @@ py -3.11 -m consultai.training.baseline data\training\normalized.jsonl data\trai
 
 The QLoRA notebook is [notebooks/qlora_training.ipynb](notebooks/qlora_training.ipynb). It is a configuration and data-loading scaffold; no training metric is reported until a licensed base model, GPU environment, and frozen evaluation set are selected.
 
+## Phase 6 quality checks
+
+Phase 6 adds the evaluator, risk check, critic routing, and 20 golden cases:
+
+```powershell
+py -3.11 -m pytest
+```
+
+Quality endpoints are available at `POST /api/evaluate`, `POST /api/critic`,
+and `POST /api/risk-check`. The evaluator reports rubric scores; the critic
+routes failures to the responsible node with a maximum retry budget of two.
+
 ## Automatic GitHub sync
 
 This repository is configured to push after every successful commit. Configure

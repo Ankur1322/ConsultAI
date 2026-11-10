@@ -195,5 +195,8 @@ class GraphState(BaseModel):
     process_map: ProcessMap | None = None
     research: ResearchSummary | None = None
     opportunities: list[AIOpportunity] = Field(default_factory=list)
+    evaluation: dict[str, Any] | None = None
+    risk_assessments: list[dict[str, Any]] = Field(default_factory=list)
+    critic_result: dict[str, Any] | None = None
     events: list[RunEvent] = Field(default_factory=list)
     review_required: bool = False
