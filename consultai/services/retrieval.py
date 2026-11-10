@@ -40,7 +40,12 @@ class EvidenceStore:
 
     def retrieve(self, session_id: UUID, query: str, top_k: int = 5) -> RetrievalResult:
         query_tokens = Counter(_tokens(query))
-        documents = self.list(session_id)
+        if self.repository is not None:
+            documents = self.repository.search_sources(session_id, query)
+            if not documents:
+                documents = self.list(session_id)
+        else:
+            documents = self.list(session_id)
         scored: list[RetrievalHit] = []
         for document in documents:
             document_tokens = Counter(_tokens(document.text))

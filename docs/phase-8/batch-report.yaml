@@ -29,3 +29,4 @@ validation:
     result: Session and source evidence remained available after restarting the API container.
 follow_up:
   - Migrate the custom graph to a compiled LangGraph StateGraph and use the official PostgresSaver.
+  - Add the production retrieval lexical index and reranker benchmark in phase 9.

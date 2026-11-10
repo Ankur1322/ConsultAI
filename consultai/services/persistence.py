@@ -51,6 +51,10 @@ class Repository:
                     text TEXT NOT NULL,
                     metadata JSONB NOT NULL
                 );
+                ALTER TABLE consultai_sources ADD COLUMN IF NOT EXISTS search_text TSVECTOR
+                    GENERATED ALWAYS AS (to_tsvector('simple', title || ' ' || text)) STORED;
+                CREATE INDEX IF NOT EXISTS consultai_sources_search_idx
+                    ON consultai_sources USING GIN (search_text);
                 CREATE TABLE IF NOT EXISTS consultai_checkpoints (
                     session_id UUID NOT NULL REFERENCES consultai_sessions(id) ON DELETE CASCADE,
                     checkpoint_no BIGSERIAL,
@@ -100,9 +104,36 @@ class Repository:
                 """
                 INSERT INTO consultai_sources (source_id, session_id, title, text, metadata)
                 VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (source_id) DO NOTHING
                 """,
                 (document.source_id, session_id, document.title, document.text, json.dumps(document.metadata)),
             )
+
+    def search_sources(self, session_id: UUID, query: str, limit: int = 20) -> list[SourceDocument]:
+        self.connect()
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT source_id, session_id, title, text, metadata
+                FROM consultai_sources
+                WHERE session_id = %s
+                  AND search_text @@ plainto_tsquery('simple', %s)
+                ORDER BY ts_rank_cd(search_text, plainto_tsquery('simple', %s)) DESC
+                LIMIT %s
+                """,
+                (session_id, query, query, limit),
+            )
+            rows = cursor.fetchall()
+        return [
+            SourceDocument(
+                source_id=row[0],
+                session_id=row[1],
+                title=row[2],
+                text=row[3],
+                metadata=row[4],
+            )
+            for row in rows
+        ]
 
     def list_sources(self, session_id: UUID) -> list[SourceDocument]:
         self.connect()

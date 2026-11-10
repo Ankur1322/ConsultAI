@@ -1,0 +1,19 @@
+phase: 9
+title: PostgreSQL full-text retrieval baseline
+status: complete_with_follow_up
+files_created:
+  - docs/phase-9/retrieval.md
+  - tests/test_retrieval_persistence.py
+files_modified:
+  - consultai/services/persistence.py
+  - consultai/services/retrieval.py
+implemented:
+  - PostgreSQL tsvector generated search column.
+  - GIN lexical index and ts_rank_cd candidate ordering.
+  - Session-scoped database retrieval with offline fallback.
+  - Existing corrective retrieval preserved.
+validation:
+  python_tests:
+    status: pending
+follow_up:
+  - Add a measured embedding provider and cross-encoder reranker benchmark.
