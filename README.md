@@ -93,3 +93,24 @@ py -3.11 -m consultai.training.baseline data\training\normalized.jsonl data\trai
 ```
 
 The QLoRA notebook is [notebooks/qlora_training.ipynb](notebooks/qlora_training.ipynb). It is a configuration and data-loading scaffold; no training metric is reported until a licensed base model, GPU environment, and frozen evaluation set are selected.
+
+## Automatic GitHub sync
+
+This repository is configured to push after every successful commit. Configure
+the local hook once in PowerShell:
+
+```powershell
+.\setup-git-hooks.ps1
+```
+
+After that, use normal Git commands:
+
+```powershell
+git add .
+git commit -m "Describe the change"
+```
+
+The post-commit hook pushes the current branch to `origin`. A file save does
+not create an automatic commit; this avoids uploading unfinished or sensitive
+changes. If the push fails, the commit remains local and Git reports the
+failure so it can be retried.

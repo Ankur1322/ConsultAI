@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+branch="$(git symbolic-ref --quiet --short HEAD || true)"
+if [ -z "$branch" ]; then
+  echo "Automatic push skipped: detached HEAD."
+  exit 0
+fi
+
+echo "Pushing commit on $branch to origin..."
+git push origin "$branch"
