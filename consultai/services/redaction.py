@@ -14,7 +14,7 @@ _PATTERNS = (
     ("PHONE_NUMBER", re.compile(r"(?<!\d)(?:\+?\d[\d\s().-]{7,}\d)(?!\d)")),
     ("CREDIT_CARD", re.compile(r"(?<!\d)(?:\d[ -]*?){13,19}(?!\d)")),
 )
-_SUPPORTED_PRESIDIO_TYPES = {"EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "PERSON", "US_SSN"}
+_SUPPORTED_PRESIDIO_TYPES = {"EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD"}
 
 
 def redact_pii(text: str) -> RedactionResult:
