@@ -7,11 +7,12 @@ from uuid import UUID
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from .graph import run_graph
+from .graph import resume_graph, run_graph
 from .models import (
     GraphState,
     LoginRequest,
     RegisterRequest,
+    ReviewDecision,
     RequirementsRequest,
     ResearchRequest,
     Session,
@@ -159,6 +160,26 @@ def run_session(session_id: UUID, request: Request) -> dict:
     if _repository is not None:
         _repository.save_session(_sessions[session_id], user)
         _repository.checkpoint(_sessions[session_id])
+    return get_session(session_id, request)
+
+
+@app.post("/api/sessions/{session_id}/review")
+def review_session(session_id: UUID, payload: ReviewDecision, request: Request) -> dict:
+    user = current_user(request)
+    state = _sessions.get(session_id)
+    if state is None and _repository is not None:
+        state = _repository.get_session(session_id, user)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    try:
+        state = resume_graph(state, payload.approved, payload.comment)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _sessions[session_id] = state
+    if _repository is not None:
+        _repository.save_session(state, user)
+        _repository.checkpoint(state)
+        _repository.audit(user, "session.review", session_id)
     return get_session(session_id, request)
 
 

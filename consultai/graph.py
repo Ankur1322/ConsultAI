@@ -105,7 +105,10 @@ def critic(state: GraphState) -> GraphState:
 
 
 def human_review(state: GraphState) -> GraphState:
-    return _event(state, "human_review", "Human review interrupt adapter is deferred.")
+    if state.review_required:
+        state.session.status = SessionStatus.REVIEW
+        return _event(state, "human_review", "Workflow paused for human approval.")
+    return _event(state, "human_review", "Human review was not required.")
 
 
 def composer(state: GraphState) -> GraphState:
@@ -133,7 +136,28 @@ NODE_HANDLERS: dict[str, Node] = {
 def run_graph(state: GraphState) -> GraphState:
     for name in NODE_NAMES:
         state = NODE_HANDLERS[name](state)
+        if name == "human_review" and state.review_required:
+            break
     return state
 
 
 run_stub_graph = run_graph
+
+
+def resume_graph(state: GraphState, approved: bool, comment: str | None = None) -> GraphState:
+    if state.session.status != SessionStatus.REVIEW:
+        raise ValueError("Session is not waiting for human review")
+    state.events.append(
+        RunEvent(
+            session_id=state.session.id,
+            node="human_review",
+            status="approved" if approved else "rejected",
+            message=comment or ("Human review approved." if approved else "Human review rejected."),
+        )
+    )
+    if not approved:
+        state.session.status = SessionStatus.FAILED
+        return state
+    state.review_required = False
+    state.session.status = SessionStatus.RUNNING
+    return composer(state)

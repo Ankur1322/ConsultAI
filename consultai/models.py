@@ -183,6 +183,11 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=200)
 
 
+class ReviewDecision(BaseModel):
+    approved: bool
+    comment: str | None = Field(default=None, max_length=2_000)
+
+
 class RequirementsRequest(BaseModel):
     process_description: str = Field(min_length=1, max_length=100_000)
     discovery_answers: dict[str, str | None] = Field(default_factory=dict)
