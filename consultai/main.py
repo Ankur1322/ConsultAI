@@ -3,8 +3,8 @@ import json
 from collections.abc import AsyncIterator
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from .graph import run_graph
 from .models import (
@@ -21,11 +21,25 @@ from .services.critic import critic_decision
 from .services.discovery import generate_discovery
 from .services.evaluator import evaluate_requirements
 from .services.requirements_agent import build_requirements
+from .services.observability import request_metrics
+from .services.redaction import redact_pii
 from .services.risk import assess_opportunity_risk
 from .services.retrieval import evidence_store
 
 app = FastAPI(title="ConsultAI", version="0.1.0")
 _sessions: dict[UUID, GraphState] = {}
+app.middleware("http")(request_metrics)
+
+
+@app.middleware("http")
+async def require_api_key(request: Request, call_next):
+    from .config import get_settings
+
+    configured_key = get_settings().api_key
+    if configured_key and request.url.path not in {"/health", "/docs", "/openapi.json", "/redoc"}:
+        if request.headers.get("X-API-Key") != configured_key:
+            return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
+    return await call_next(request)
 
 
 @app.get("/health")
@@ -35,8 +49,15 @@ def health() -> dict[str, str]:
 
 @app.post("/api/sessions", status_code=201)
 def create_session(payload: SessionCreate) -> dict:
+    redaction = redact_pii(payload.process_description)
     session = Session(vertical=payload.vertical, status=SessionStatus.RUNNING)
-    state = GraphState(session=session, process_description=payload.process_description)
+    state = GraphState(
+        session=session,
+        process_description=redaction.text,
+        redacted_description=redaction.text,
+        redaction_count=redaction.count,
+        redaction_entity_types=list(redaction.entity_types),
+    )
     _sessions[session.id] = state
     return {"session": session, "status_url": f"/api/sessions/{session.id}"}
 
@@ -74,7 +95,13 @@ def requirements(payload: RequirementsRequest) -> dict:
 def add_source(session_id: UUID, payload: SourceCreate) -> dict:
     if session_id not in _sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    return evidence_store.add(session_id, payload).model_dump(mode="json")
+    redaction = redact_pii(payload.text)
+    safe_payload = payload.model_copy(update={"text": redaction.text})
+    document = evidence_store.add(session_id, safe_payload)
+    result = document.model_dump(mode="json")
+    result["redaction_count"] = redaction.count
+    result["redaction_entity_types"] = list(redaction.entity_types)
+    return result
 
 
 @app.post("/api/sessions/{session_id}/retrieve")

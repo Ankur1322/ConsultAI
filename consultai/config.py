@@ -13,6 +13,7 @@ class Settings(BaseModel):
     ollama_model: str = Field(default="llama3.2", alias="CONSULTAI_OLLAMA_MODEL")
     external_llm_enabled: bool = Field(default=False, alias="CONSULTAI_EXTERNAL_LLM_ENABLED")
     retention_days: int = Field(default=30, ge=1, alias="CONSULTAI_RETENTION_DAYS")
+    api_key: str | None = Field(default=None, alias="CONSULTAI_API_KEY")
 
     model_config = {"populate_by_name": True}
 

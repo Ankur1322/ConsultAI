@@ -65,3 +65,23 @@ def test_quality_endpoints() -> None:
     assert critic.json()["max_retries"] == 2
     risk = client.post("/api/risk-check", json={"id": "AI-001", "risks": []})
     assert risk.status_code == 200
+
+
+def test_session_and_source_pii_are_redacted() -> None:
+    created = client.post(
+        "/api/sessions",
+        json={
+            "vertical": "customer_support",
+            "process_description": "Contact alice@example.com for support.",
+        },
+    )
+    assert created.status_code == 201
+    session_id = created.json()["session"]["id"]
+    session = client.get(f"/api/sessions/{session_id}").json()
+    assert "alice@example.com" not in session["result"]["process_description"]
+    source = client.post(
+        f"/api/sessions/{session_id}/sources",
+        json={"title": "Contact", "text": "Email alice@example.com for approval."},
+    )
+    assert source.status_code == 201
+    assert source.json()["redaction_count"] == 1

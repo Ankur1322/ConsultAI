@@ -106,6 +106,17 @@ Quality endpoints are available at `POST /api/evaluate`, `POST /api/critic`,
 and `POST /api/risk-check`. The evaluator reports rubric scores; the critic
 routes failures to the responsible node with a maximum retry budget of two.
 
+## Phase 7 security and deployment
+
+Phase 7 adds configurable API-key protection, common-pattern PII redaction,
+structured request metrics, security headers, deployment guidance, and a
+limitations note. Set `CONSULTAI_API_KEY` in `.env` to protect API routes.
+Health checks remain available without a key.
+
+See [deployment guidance](docs/phase-7/deployment.md) and
+[limitations](docs/phase-7/limitations.md) before treating the prototype as
+production-ready.
+
 ## Automatic GitHub sync
 
 This repository is configured to push after every successful commit. Configure

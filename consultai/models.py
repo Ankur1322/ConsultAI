@@ -190,6 +190,8 @@ class GraphState(BaseModel):
     session: Session
     process_description: str
     redacted_description: str | None = None
+    redaction_count: int = 0
+    redaction_entity_types: list[str] = Field(default_factory=list)
     discovery_answers: dict[str, str | None] = Field(default_factory=dict)
     requirements: RequirementsDoc | None = None
     process_map: ProcessMap | None = None

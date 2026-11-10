@@ -1,0 +1,27 @@
+phase: 7
+title: Auth, redaction, observability, deployment, and limitations
+status: complete
+files_created:
+  - consultai/services/redaction.py
+  - consultai/services/observability.py
+  - docs/phase-7/deployment.md
+  - docs/phase-7/limitations.md
+  - tests/test_security.py
+implemented:
+  - Optional API-key protection controlled by CONSULTAI_API_KEY.
+  - Health and documentation endpoints remain available without a key.
+  - Common-pattern email, phone, and credit-card PII redaction before session and source storage.
+  - Redaction counts and entity types recorded as non-sensitive metadata.
+  - Structured request completion logs with duration and status.
+  - Security response headers.
+  - Local deployment checklist and explicit prototype limitations.
+validation:
+  python_tests:
+    status: passed
+    result: 22 passed.
+  runtime:
+    status: passed
+    result: Docker rebuild, health check, and PII-redaction source flow passed over HTTP.
+limitations:
+  - Authentication is API-key based and is not full user identity, tenant isolation, or role authorization.
+  - Presidio and persistent Postgres storage remain production hardening work.
