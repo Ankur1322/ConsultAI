@@ -17,3 +17,12 @@ def test_all_golden_cases_have_valid_agent_outputs() -> None:
         assert discovery.questions or not case["expected_topics"]
         assert requirements.functional
         assert all(item.text.startswith("The system shall") for item in requirements.functional)
+
+
+def test_adversarial_cases_are_present_and_schema_safe() -> None:
+    path = Path("data/evaluation/adversarial_cases.jsonl")
+    cases = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert len(cases) == 5
+    assert {case["category"] for case in cases} == {
+        "prompt_injection", "poisoned_document", "pii_variant", "contradiction", "citation_manipulation",
+    }
