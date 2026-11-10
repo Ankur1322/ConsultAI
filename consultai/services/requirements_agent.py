@@ -8,6 +8,7 @@ from ..models import (
     SourceType,
 )
 from .prompt_loader import load_prompt
+from .model_runtime import generate_json
 
 
 def _sentences(text: str) -> list[str]:
@@ -18,6 +19,13 @@ def build_requirements(process_description: str, answers: dict[str, str | None])
     prompt = load_prompt("requirements_agent", "v1")
     if "Return JSON matching the `RequirementsDoc` schema" not in prompt:
         raise RuntimeError("Requirements prompt contract is invalid")
+    rendered = prompt.replace("{{description}}", process_description).replace("{{discovery_answers}}", str(answers))
+    model_result = generate_json(rendered)
+    if model_result is not None:
+        try:
+            return RequirementsDoc.model_validate(model_result)
+        except Exception as exc:
+            raise RuntimeError("Model output failed RequirementsDoc validation") from exc
 
     sentences = _sentences(process_description)
     functional = [
