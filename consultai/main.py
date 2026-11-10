@@ -112,6 +112,16 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "consultai"}
 
 
+@app.get("/ready")
+def ready() -> dict[str, str]:
+    if _repository is not None:
+        try:
+            _repository.connect()
+        except PersistenceError as exc:
+            raise HTTPException(status_code=503, detail="PostgreSQL is not ready") from exc
+    return {"status": "ready", "service": "consultai"}
+
+
 @app.get("/metrics")
 def metrics() -> dict[str, int | float]:
     return metrics_snapshot()
