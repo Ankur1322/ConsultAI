@@ -77,6 +77,10 @@ class Repository:
                     text TEXT NOT NULL,
                     metadata JSONB NOT NULL
                 );
+                CREATE EXTENSION IF NOT EXISTS vector;
+                ALTER TABLE consultai_sources ADD COLUMN IF NOT EXISTS embedding vector(768);
+                CREATE INDEX IF NOT EXISTS consultai_sources_embedding_idx
+                    ON consultai_sources USING hnsw (embedding vector_cosine_ops);
                 ALTER TABLE consultai_sources ADD COLUMN IF NOT EXISTS search_text TSVECTOR
                     GENERATED ALWAYS AS (to_tsvector('simple', title || ' ' || text)) STORED;
                 CREATE INDEX IF NOT EXISTS consultai_sources_search_idx
@@ -169,19 +173,32 @@ class Repository:
                 (user.id if user else None, user.tenant_id if user else None, action, resource_id, datetime.now(timezone.utc)),
             )
 
-    def add_source(self, session_id: UUID, document: SourceDocument) -> None:
+    def add_source(self, session_id: UUID, document: SourceDocument, embedding: list[float] | None = None) -> None:
         self.connect()
         with self._connection.cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO consultai_sources (source_id, session_id, title, text, metadata)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO consultai_sources (source_id, session_id, title, text, metadata, embedding)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (source_id) DO NOTHING
                 """,
-                (document.source_id, session_id, document.title, document.text, json.dumps(document.metadata)),
+                (
+                    document.source_id,
+                    session_id,
+                    document.title,
+                    document.text,
+                    json.dumps(document.metadata),
+                    str(embedding) if embedding is not None else None,
+                ),
             )
 
-    def search_sources(self, session_id: UUID, query: str, limit: int = 20) -> list[SourceDocument]:
+    def search_sources(
+        self,
+        session_id: UUID,
+        query: str,
+        limit: int = 20,
+        query_embedding: list[float] | None = None,
+    ) -> list[SourceDocument]:
         self.connect()
         with self._connection.cursor() as cursor:
             cursor.execute(
@@ -189,11 +206,27 @@ class Repository:
                 SELECT source_id, session_id, title, text, metadata
                 FROM consultai_sources
                 WHERE session_id = %s
-                  AND search_text @@ plainto_tsquery('simple', %s)
-                ORDER BY ts_rank_cd(search_text, plainto_tsquery('simple', %s)) DESC
+                  AND (
+                    search_text @@ plainto_tsquery('simple', %s)
+                    OR (%s IS NOT NULL AND embedding IS NOT NULL)
+                  )
+                ORDER BY
+                    CASE WHEN %s IS NOT NULL AND embedding IS NOT NULL
+                        THEN 1 - (embedding <=> %s::vector)
+                        ELSE 0
+                    END DESC,
+                    ts_rank_cd(search_text, plainto_tsquery('simple', %s)) DESC
                 LIMIT %s
                 """,
-                (session_id, query, query, limit),
+                (
+                    session_id,
+                    query,
+                    str(query_embedding) if query_embedding is not None else None,
+                    str(query_embedding) if query_embedding is not None else None,
+                    str(query_embedding) if query_embedding is not None else None,
+                    query,
+                    limit,
+                ),
             )
             rows = cursor.fetchall()
         return [

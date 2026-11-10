@@ -1,3 +1,4 @@
+import os
 import re
 from collections import Counter
 from uuid import UUID, uuid4
@@ -5,6 +6,7 @@ from uuid import UUID, uuid4
 from ..models import RetrievalHit, RetrievalResult, SourceCreate, SourceDocument
 from .persistence import Repository
 from .observability import increment
+from .embeddings import EmbeddingError, embed_text
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
@@ -28,8 +30,16 @@ class EvidenceStore:
             text=payload.text,
             metadata=payload.metadata,
         )
+        embedding = None
+        if os.getenv("CONSULTAI_EMBEDDINGS_ENABLED", "false").lower() == "true":
+            try:
+                embedding = embed_text(f"{document.title}\n{document.text}")
+                if embedding is not None and len(embedding) != 768:
+                    embedding = None
+            except EmbeddingError:
+                embedding = None
         if self.repository is not None:
-            self.repository.add_source(session_id, document)
+            self.repository.add_source(session_id, document, embedding=embedding)
         else:
             self._documents.setdefault(session_id, {})[document.source_id] = document
         return document
@@ -42,8 +52,14 @@ class EvidenceStore:
     def retrieve(self, session_id: UUID, query: str, top_k: int = 5) -> RetrievalResult:
         increment("retrieval_calls_total")
         query_tokens = Counter(_tokens(query))
+        query_embedding = None
+        if os.getenv("CONSULTAI_EMBEDDINGS_ENABLED", "false").lower() == "true":
+            try:
+                query_embedding = embed_text(query)
+            except EmbeddingError:
+                query_embedding = None
         if self.repository is not None:
-            documents = self.repository.search_sources(session_id, query)
+            documents = self.repository.search_sources(session_id, query, query_embedding=query_embedding)
             if not documents:
                 documents = self.list(session_id)
         else:

@@ -131,6 +131,10 @@ The PostgreSQL repository creates `consultai_sessions`, `consultai_sources`,
 and `consultai_checkpoints`. The default `memory` mode remains useful for
 offline unit tests; production Docker configuration should use `postgres`.
 
+For durable vector retrieval, set `CONSULTAI_EMBEDDINGS_ENABLED=true` and use
+the Ollama `nomic-embed-text` model. PostgreSQL stores 768-dimensional vectors
+with an HNSW cosine index and combines vector similarity with full-text ranking.
+
 ## Automatic GitHub sync
 
 This repository is configured to push after every successful commit. Configure
