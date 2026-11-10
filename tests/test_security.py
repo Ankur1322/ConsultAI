@@ -9,6 +9,12 @@ def test_redaction_removes_common_pii() -> None:
     assert set(result.entity_types) == {"EMAIL_ADDRESS", "PHONE_NUMBER"}
 
 
+def test_redaction_does_not_count_unsupported_presidio_entities() -> None:
+    result = redact_pii("Contact alice@example.com for more information.")
+    assert result.count == 1
+    assert result.entity_types == ("EMAIL_ADDRESS",)
+
+
 def test_redaction_is_idempotent_for_safe_text() -> None:
     result = redact_pii("Invoices require manager approval.")
     assert result.text == "Invoices require manager approval."
