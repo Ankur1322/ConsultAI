@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from ..models import GraphState, Session, SourceDocument, SourceCreate, Vertical
+from .auth import AuthenticatedUser
 
 
 class PersistenceError(RuntimeError):
@@ -38,11 +39,36 @@ class Repository:
                 """
                 CREATE TABLE IF NOT EXISTS consultai_sessions (
                     id UUID PRIMARY KEY,
+                    tenant_id UUID,
+                    owner_id UUID,
                     vertical TEXT NOT NULL,
                     status TEXT NOT NULL,
                     created_at TIMESTAMPTZ NOT NULL,
                     updated_at TIMESTAMPTZ NOT NULL,
                     payload JSONB NOT NULL
+                );
+                ALTER TABLE consultai_sessions ADD COLUMN IF NOT EXISTS tenant_id UUID;
+                ALTER TABLE consultai_sessions ADD COLUMN IF NOT EXISTS owner_id UUID;
+                CREATE TABLE IF NOT EXISTS consultai_users (
+                    id UUID PRIMARY KEY,
+                    tenant_id UUID NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'owner',
+                    created_at TIMESTAMPTZ NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS consultai_tokens (
+                    token TEXT PRIMARY KEY,
+                    user_id UUID NOT NULL REFERENCES consultai_users(id) ON DELETE CASCADE,
+                    expires_at TIMESTAMPTZ NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS consultai_audit (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id UUID,
+                    tenant_id UUID,
+                    action TEXT NOT NULL,
+                    resource_id UUID,
+                    created_at TIMESTAMPTZ NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS consultai_sources (
                     source_id TEXT PRIMARY KEY,
@@ -65,14 +91,14 @@ class Repository:
                 """
             )
 
-    def save_session(self, state: GraphState) -> None:
+    def save_session(self, state: GraphState, user: AuthenticatedUser | None = None) -> None:
         self.connect()
         payload = state.model_dump(mode="json")
         with self._connection.cursor() as cursor:
             cursor.execute(
                 """
-                INSERT INTO consultai_sessions (id, vertical, status, created_at, updated_at, payload)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO consultai_sessions (id, tenant_id, owner_id, vertical, status, created_at, updated_at, payload)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (id) DO UPDATE SET
                     status = EXCLUDED.status,
                     updated_at = EXCLUDED.updated_at,
@@ -80,6 +106,8 @@ class Repository:
                 """,
                 (
                     state.session.id,
+                    user.tenant_id if user else None,
+                    user.id if user else None,
                     state.session.vertical.value,
                     state.session.status.value,
                     state.session.created_at,
@@ -88,14 +116,58 @@ class Repository:
                 ),
             )
 
-    def get_session(self, session_id: UUID) -> GraphState | None:
+    def get_session(self, session_id: UUID, user: AuthenticatedUser | None = None) -> GraphState | None:
         self.connect()
         with self._connection.cursor() as cursor:
-            cursor.execute("SELECT payload FROM consultai_sessions WHERE id = %s", (session_id,))
+            if user:
+                cursor.execute(
+                    "SELECT payload FROM consultai_sessions WHERE id = %s AND tenant_id = %s",
+                    (session_id, user.tenant_id),
+                )
+            else:
+                cursor.execute("SELECT payload FROM consultai_sessions WHERE id = %s", (session_id,))
             row = cursor.fetchone()
         if row is None:
             return None
         return GraphState.model_validate(row[0])
+
+    def create_user(self, user: AuthenticatedUser, password_hash: str) -> None:
+        self.connect()
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO consultai_users (id, tenant_id, email, password_hash, role, created_at) VALUES (%s,%s,%s,%s,%s,%s)",
+                (user.id, user.tenant_id, user.email, password_hash, user.role, datetime.now(timezone.utc)),
+            )
+
+    def find_user(self, email: str) -> tuple[AuthenticatedUser, str] | None:
+        self.connect()
+        with self._connection.cursor() as cursor:
+            cursor.execute("SELECT id, tenant_id, email, role, password_hash FROM consultai_users WHERE lower(email)=lower(%s)", (email,))
+            row = cursor.fetchone()
+        return None if row is None else (AuthenticatedUser(row[0], row[1], row[2], row[3]), row[4])
+
+    def save_token(self, token: str, user_id: UUID, expires_at: datetime) -> None:
+        self.connect()
+        with self._connection.cursor() as cursor:
+            cursor.execute("INSERT INTO consultai_tokens (token, user_id, expires_at) VALUES (%s,%s,%s)", (token, user_id, expires_at))
+
+    def user_for_token(self, token: str) -> AuthenticatedUser | None:
+        self.connect()
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT u.id, u.tenant_id, u.email, u.role FROM consultai_tokens t JOIN consultai_users u ON u.id=t.user_id WHERE t.token=%s AND t.expires_at > %s",
+                (token, datetime.now(timezone.utc)),
+            )
+            row = cursor.fetchone()
+        return None if row is None else AuthenticatedUser(row[0], row[1], row[2], row[3])
+
+    def audit(self, user: AuthenticatedUser | None, action: str, resource_id: UUID | None = None) -> None:
+        self.connect()
+        with self._connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO consultai_audit (user_id, tenant_id, action, resource_id, created_at) VALUES (%s,%s,%s,%s,%s)",
+                (user.id if user else None, user.tenant_id if user else None, action, resource_id, datetime.now(timezone.utc)),
+            )
 
     def add_source(self, session_id: UUID, document: SourceDocument) -> None:
         self.connect()

@@ -10,6 +10,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from .graph import run_graph
 from .models import (
     GraphState,
+    LoginRequest,
+    RegisterRequest,
     RequirementsRequest,
     ResearchRequest,
     Session,
@@ -18,6 +20,14 @@ from .models import (
     SourceCreate,
 )
 from .services.citations import build_research_summary
+from .services.auth import (
+    AuthenticatedUser,
+    auth_enabled,
+    hash_password,
+    issue_token,
+    new_identity,
+    verify_password,
+)
 from .services.critic import critic_decision
 from .services.discovery import generate_discovery
 from .services.evaluator import evaluate_requirements
@@ -35,16 +45,65 @@ if _repository is not None:
     evidence_store.repository = _repository
 app.middleware("http")(request_metrics)
 
+def current_user(request: Request) -> AuthenticatedUser | None:
+    if not auth_enabled():
+        return None
+    if _repository is None:
+        raise HTTPException(status_code=503, detail="Persistent storage is required when authentication is enabled")
+    header = request.headers.get("Authorization", "")
+    if not header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    user = _repository.user_for_token(header[7:].strip())
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    return user
+
 
 @app.middleware("http")
 async def require_api_key(request: Request, call_next):
     from .config import get_settings
 
     configured_key = get_settings().api_key
-    if configured_key and request.url.path not in {"/health", "/docs", "/openapi.json", "/redoc"}:
+    public_paths = {"/health", "/docs", "/openapi.json", "/redoc", "/api/auth/register", "/api/auth/login"}
+    if auth_enabled() and request.url.path not in public_paths:
+        try:
+            current_user(request)
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    elif configured_key and request.url.path not in public_paths:
         if request.headers.get("X-API-Key") != configured_key:
             return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
     return await call_next(request)
+
+
+@app.post("/api/auth/register", status_code=201)
+def register(payload: RegisterRequest) -> dict[str, object]:
+    if _repository is None:
+        raise HTTPException(status_code=503, detail="Persistent storage is required for registration")
+    user_id, generated_tenant = new_identity()
+    user = AuthenticatedUser(user_id, payload.tenant_id or generated_tenant, payload.email, "owner")
+    try:
+        _repository.create_user(user, hash_password(payload.password))
+    except Exception as exc:
+        raise HTTPException(status_code=409, detail="Email is already registered") from exc
+    token, expires_at = issue_token(user.id)
+    _repository.save_token(token, user.id, expires_at)
+    _repository.audit(user, "auth.register")
+    return {"access_token": token, "token_type": "bearer", "expires_at": expires_at, "tenant_id": user.tenant_id}
+
+
+@app.post("/api/auth/login")
+def login(payload: LoginRequest) -> dict[str, object]:
+    if _repository is None:
+        raise HTTPException(status_code=503, detail="Persistent storage is required for login")
+    record = _repository.find_user(payload.email)
+    if record is None or not verify_password(payload.password, record[1]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    user = record[0]
+    token, expires_at = issue_token(user.id)
+    _repository.save_token(token, user.id, expires_at)
+    _repository.audit(user, "auth.login")
+    return {"access_token": token, "token_type": "bearer", "expires_at": expires_at, "tenant_id": user.tenant_id}
 
 
 @app.get("/health")
@@ -53,7 +112,8 @@ def health() -> dict[str, str]:
 
 
 @app.post("/api/sessions", status_code=201)
-def create_session(payload: SessionCreate) -> dict:
+def create_session(payload: SessionCreate, request: Request) -> dict:
+    user = current_user(request)
     redaction = redact_pii(payload.process_description)
     session = Session(vertical=payload.vertical, status=SessionStatus.RUNNING)
     state = GraphState(
@@ -65,15 +125,19 @@ def create_session(payload: SessionCreate) -> dict:
     )
     _sessions[session.id] = state
     if _repository is not None:
-        _repository.save_session(state)
+        _repository.save_session(state, user)
+        _repository.audit(user, "session.create", session.id)
     return {"session": session, "status_url": f"/api/sessions/{session.id}"}
 
 
 @app.get("/api/sessions/{session_id}")
-def get_session(session_id: UUID) -> dict:
+def get_session(session_id: UUID, request: Request) -> dict:
+    user = current_user(request)
     state = _sessions.get(session_id)
+    if state is not None and user and state.session.id != session_id:
+        state = None
     if state is None and _repository is not None:
-        state = _repository.get_session(session_id)
+        state = _repository.get_session(session_id, user)
         if state is not None:
             _sessions[session_id] = state
     if state is None:
@@ -82,15 +146,20 @@ def get_session(session_id: UUID) -> dict:
 
 
 @app.post("/api/sessions/{session_id}/run")
-def run_session(session_id: UUID) -> dict:
+def run_session(session_id: UUID, request: Request) -> dict:
+    user = current_user(request)
     state = _sessions.get(session_id)
+    if state is None and _repository is not None:
+        state = _repository.get_session(session_id, user)
+        if state is not None:
+            _sessions[session_id] = state
     if state is None:
         raise HTTPException(status_code=404, detail="Session not found")
     _sessions[session_id] = run_graph(state)
     if _repository is not None:
-        _repository.save_session(_sessions[session_id])
+        _repository.save_session(_sessions[session_id], user)
         _repository.checkpoint(_sessions[session_id])
-    return get_session(session_id)
+    return get_session(session_id, request)
 
 
 @app.post("/api/discovery")
@@ -106,7 +175,8 @@ def requirements(payload: RequirementsRequest) -> dict:
 
 
 @app.post("/api/sessions/{session_id}/sources", status_code=201)
-def add_source(session_id: UUID, payload: SourceCreate) -> dict:
+def add_source(session_id: UUID, payload: SourceCreate, request: Request) -> dict:
+    current_user(request)
     if session_id not in _sessions:
         raise HTTPException(status_code=404, detail="Session not found")
     redaction = redact_pii(payload.text)
@@ -119,7 +189,8 @@ def add_source(session_id: UUID, payload: SourceCreate) -> dict:
 
 
 @app.post("/api/sessions/{session_id}/retrieve")
-def retrieve_sources(session_id: UUID, payload: ResearchRequest) -> dict:
+def retrieve_sources(session_id: UUID, payload: ResearchRequest, request: Request) -> dict:
+    current_user(request)
     if session_id not in _sessions:
         raise HTTPException(status_code=404, detail="Session not found")
     result = evidence_store.corrective_retrieve(
@@ -131,7 +202,8 @@ def retrieve_sources(session_id: UUID, payload: ResearchRequest) -> dict:
 
 
 @app.post("/api/sessions/{session_id}/research")
-def research(session_id: UUID, payload: ResearchRequest) -> dict:
+def research(session_id: UUID, payload: ResearchRequest, request: Request) -> dict:
+    current_user(request)
     if session_id not in _sessions:
         raise HTTPException(status_code=404, detail="Session not found")
     retrieval = evidence_store.corrective_retrieve(
@@ -162,7 +234,8 @@ def risk_check(payload: dict[str, object]) -> dict:
 
 
 @app.get("/api/sessions/{session_id}/stream")
-async def stream_session(session_id: UUID) -> StreamingResponse:
+async def stream_session(session_id: UUID, request: Request) -> StreamingResponse:
+    current_user(request)
     state = _sessions.get(session_id)
     if state is None:
         raise HTTPException(status_code=404, detail="Session not found")

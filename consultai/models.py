@@ -172,6 +172,17 @@ class SessionCreate(BaseModel):
     process_description: str = Field(min_length=1, max_length=100_000)
 
 
+class RegisterRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=12, max_length=200)
+    tenant_id: UUID | None = None
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=200)
+
+
 class RequirementsRequest(BaseModel):
     process_description: str = Field(min_length=1, max_length=100_000)
     discovery_answers: dict[str, str | None] = Field(default_factory=dict)
