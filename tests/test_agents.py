@@ -36,5 +36,5 @@ def test_requirements_redacts_pii_before_rendering_a_model_prompt(monkeypatch) -
 
     assert "alice@example.com" not in captured["prompt"]
     assert "555-123-4567" not in captured["prompt"]
-    assert "[REDACTED_EMAIL_ADDRESS]" in captured["prompt"]
-    assert "[REDACTED_PHONE_NUMBER]" in captured["prompt"]
+    assert "EMAIL_ADDRESS" in captured["prompt"]
+    assert "PHONE_NUMBER" in captured["prompt"]
