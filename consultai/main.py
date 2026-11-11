@@ -2,12 +2,13 @@ import asyncio
 import json
 import os
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from .graph import resume_graph, run_graph
+from .graph import build_graph, resume_graph, run_graph
 from .models import (
     GraphState,
     LoginRequest,
@@ -39,7 +40,29 @@ from .services.redaction import redact_pii
 from .services.risk import assess_opportunity_risk
 from .services.retrieval import evidence_store
 
-app = FastAPI(title="ConsultAI", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Create the official Postgres checkpointer only for durable deployments."""
+    context_manager = None
+    if os.getenv("CONSULTAI_STORAGE") == "postgres":
+        from langgraph.checkpoint.postgres import PostgresSaver
+
+        from .config import get_settings
+
+        context_manager = PostgresSaver.from_conn_string(get_settings().database_url)
+        checkpointer = context_manager.__enter__()
+        checkpointer.setup()
+        app.state.workflow = build_graph(checkpointer)
+    else:
+        app.state.workflow = build_graph()
+    try:
+        yield
+    finally:
+        if context_manager is not None:
+            context_manager.__exit__(None, None, None)
+
+
+app = FastAPI(title="ConsultAI", version="0.1.0", lifespan=lifespan)
 _sessions: dict[UUID, GraphState] = {}
 _repository = Repository() if os.getenv("CONSULTAI_STORAGE") == "postgres" else None
 if _repository is not None:
@@ -58,6 +81,10 @@ def current_user(request: Request) -> AuthenticatedUser | None:
     if user is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     return user
+
+
+def workflow_for(request: Request):
+    return getattr(request.app.state, "workflow", None)
 
 
 @app.middleware("http")
@@ -171,10 +198,9 @@ def run_session(session_id: UUID, request: Request) -> dict:
             _sessions[session_id] = state
     if state is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    _sessions[session_id] = run_graph(state)
+    _sessions[session_id] = run_graph(state, graph=workflow_for(request))
     if _repository is not None:
         _repository.save_session(_sessions[session_id], user)
-        _repository.checkpoint(_sessions[session_id])
     return get_session(session_id, request)
 
 
@@ -187,13 +213,12 @@ def review_session(session_id: UUID, payload: ReviewDecision, request: Request) 
     if state is None:
         raise HTTPException(status_code=404, detail="Session not found")
     try:
-        state = resume_graph(state, payload.approved, payload.comment)
+        state = resume_graph(state, payload.approved, payload.comment, graph=workflow_for(request))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     _sessions[session_id] = state
     if _repository is not None:
         _repository.save_session(state, user)
-        _repository.checkpoint(state)
         _repository.audit(user, "session.review", session_id)
     increment("human_reviews_total")
     return get_session(session_id, request)

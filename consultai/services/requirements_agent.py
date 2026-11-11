@@ -1,3 +1,4 @@
+import json
 import re
 
 from ..models import (
@@ -9,17 +10,26 @@ from ..models import (
 )
 from .prompt_loader import load_prompt
 from .model_runtime import generate_json
+from .redaction import redact_pii
 
 
 def _sentences(text: str) -> list[str]:
     return [sentence.strip() for sentence in re.split(r"(?<=[.!?])\s+", text.strip()) if sentence.strip()]
 
 
+def _safe_prompt_value(value: object) -> str:
+    """Redact PII and preserve untrusted input as data in the prompt template."""
+    redacted = redact_pii(json.dumps(value, ensure_ascii=False))
+    return redacted.text.replace("<", "\\u003c").replace(">", "\\u003e")
+
+
 def build_requirements(process_description: str, answers: dict[str, str | None]) -> RequirementsDoc:
     prompt = load_prompt("requirements_agent", "v1")
     if "Return JSON matching the `RequirementsDoc` schema" not in prompt:
         raise RuntimeError("Requirements prompt contract is invalid")
-    rendered = prompt.replace("{{description}}", process_description).replace("{{discovery_answers}}", str(answers))
+    safe_description = _safe_prompt_value(process_description)
+    safe_answers = _safe_prompt_value(answers)
+    rendered = prompt.replace("{{description}}", safe_description).replace("{{discovery_answers}}", safe_answers)
     model_result = generate_json(rendered)
     if model_result is not None:
         try:

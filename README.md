@@ -2,9 +2,13 @@
 
 ConsultAI is a local-first multi-agent platform for turning business-process descriptions into requirements, process maps, cited research, and ranked AI opportunities.
 
-## Phase 2 status
+## Implementation status
 
-This repository currently contains the Docker and CI scaffold, typed Pydantic contracts, a FastAPI session API, a streaming endpoint, a React/Vite shell, and a complete stub graph. Agent intelligence, persistence, redaction, retrieval, and evaluation are intentionally staged for later phases.
+The repository contains the Docker and CI scaffold, typed Pydantic contracts,
+FastAPI session API, React/Vite shell, and a compiled LangGraph supervisor.
+The graph uses in-memory checkpoints locally and `PostgresSaver` when
+`CONSULTAI_STORAGE=postgres`. Process mapping, opportunity generation, and
+graph-integrated research remain explicitly staged work.
 
 ## Run locally
 
@@ -127,9 +131,11 @@ $env:CONSULTAI_STORAGE = "postgres"
 .\docker-compose.ps1 up --build
 ```
 
-The PostgreSQL repository creates `consultai_sessions`, `consultai_sources`,
-and `consultai_checkpoints`. The default `memory` mode remains useful for
-offline unit tests; production Docker configuration should use `postgres`.
+The PostgreSQL repository creates `consultai_sessions` and `consultai_sources`.
+In `postgres` mode, LangGraph's official `PostgresSaver` stores the workflow
+checkpoints and supports human-review resume. The default `memory` mode remains
+useful for offline unit tests; production Docker configuration should use
+`postgres`.
 
 ## Automatic GitHub sync
 
