@@ -1,3 +1,4 @@
+import importlib.util
 import re
 from dataclasses import dataclass
 
@@ -25,6 +26,8 @@ def redact_pii(text: str) -> RedactionResult:
 
 
 def _redact_with_presidio(text: str) -> RedactionResult | None:
+    if importlib.util.find_spec("en_core_web_lg") is None:
+        return None
     try:
         from presidio_analyzer import AnalyzerEngine
         from presidio_anonymizer import AnonymizerEngine
@@ -42,7 +45,7 @@ def _redact_with_presidio(text: str) -> RedactionResult | None:
         anonymized = AnonymizerEngine().anonymize(text=text, analyzer_results=results)
         entity_types = tuple(sorted({result.entity_type for result in results}))
         return RedactionResult(anonymized.text, len(results), entity_types)
-    except (OSError, RuntimeError, ValueError):
+    except (OSError, RuntimeError, ValueError, SystemExit):
         return None
 
 
